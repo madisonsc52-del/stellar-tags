@@ -22,6 +22,8 @@
     "serde",
     "rustc",
     "uadd",
-    "xffff"
+    "xffff",
+    "libquery",
+    "psql"
   ]
 }
