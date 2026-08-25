@@ -28,6 +28,10 @@ model User {
   webhooks  Webhook[] // <-- add this line
 
   @@index([username])
+  // Serves the keyset (cursor) pagination seeks used by the /users and
+  // /lookup list endpoints: (created_at DESC, username DESC) walks this
+  // index backwards, so page depth no longer affects query cost.
+  @@index([createdAt, username])
   @@map("username_registry")
 }
 

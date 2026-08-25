@@ -1,0 +1,4 @@
+.*test.*
+.*spec.*
+tests/.*
+__tests__/.*

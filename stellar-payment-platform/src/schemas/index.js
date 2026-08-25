@@ -16,6 +16,12 @@ const paginationFields = {
   limit: clampedInt(10, 1, 100),
 };
 
+// Opaque keyset-pagination continuation token. Only shape-checked here; the
+// handlers own decoding and answer 400 on an unparseable cursor.
+const cursorField = {
+  cursor: z.string().trim().min(1).max(512).optional(),
+};
+
 // Lookup keys are passed to the database as-is, so they are only checked for
 // type and length here. Format checking of addresses stays with StrKey in the
 // handlers, which knows the real Stellar base32 alphabet and checksum.
@@ -80,6 +86,7 @@ const lookupQuerySchema = z
     address: optionalLookupString,
     search: optionalLookupString,
     ...paginationFields,
+    ...cursorField,
   })
   .loose()
   .refine((value) => Boolean(value.address || value.search), {
@@ -93,6 +100,7 @@ const usersQuerySchema = z
   .object({
     search: optionalLookupString,
     ...paginationFields,
+    ...cursorField,
   })
   .loose();
 
@@ -135,6 +143,38 @@ const adminBlockBodySchema = z
   })
   .loose();
 
+/**
+ * GET /admin/export query.
+ *
+ * - `format`    csv (default) | json
+ * - `startDate` optional ISO date string (YYYY-MM-DD), inclusive lower bound
+ * - `endDate`   optional ISO date string (YYYY-MM-DD), inclusive upper bound
+ */
+const adminExportQuerySchema = z
+  .object({
+    format: z.enum(['csv', 'json']).catch('csv'),
+    startDate: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'startDate must be YYYY-MM-DD')
+      .optional(),
+    endDate: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'endDate must be YYYY-MM-DD')
+      .optional(),
+  })
+  .loose()
+  .refine(
+    (value) => {
+      if (value.startDate && value.endDate) {
+        return new Date(value.startDate) <= new Date(value.endDate);
+      }
+      return true;
+    },
+    { error: 'startDate must be on or before endDate', path: ['startDate'] },
+  );
+
 module.exports = {
   registerBodySchema,
   federationQuerySchema,
@@ -145,4 +185,5 @@ module.exports = {
   verifyEmailConfirmBodySchema,
   adminBlockBodySchema,
   exportQuerySchema,
+  adminExportQuerySchema,
 };

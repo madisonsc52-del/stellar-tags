@@ -9,6 +9,7 @@ const exportRoutes = require('./exportRoutes');
 module.exports = (redisClient) => {
   const router = express.Router();
   const federationRoutes = require('./federationRoutes')(redisClient);
+  const adminRoutes = require('./adminRoutes')(redisClient);
 
   router.use('/', userRoutes);
   router.use('/', federationRoutes);
@@ -16,6 +17,7 @@ module.exports = (redisClient) => {
   router.use('/', historyRoutes);
   router.use('/', exportRoutes);
   router.use('/', statsRoutes);
+  router.use('/', adminRoutes);
 
   return router;
 };

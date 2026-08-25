@@ -6,7 +6,14 @@ const { verifyMultiSignerThreshold } = require('../../multisigner-verifier');
 const { poolGet, poolRun, poolAll } = require('../../db');
 const { logger } = require('../../logger');
 const { lookupCached, invalidateFederationCache } = require('../../cache');
-const { paginatedResponse } = require('../../pagination');
+const {
+  paginatedResponse,
+  parsePagination,
+  parseCursorQuery,
+  keysetWhereDesc,
+  paginateByKeyset,
+  cursorPaginatedResponse,
+} = require('../../pagination');
 const { asyncHandler } = require('../../middleware/asyncHandler');
 const {
   normalizeNameTag,
@@ -286,16 +293,42 @@ router.get('/lookup', validateSchema({ query: lookupQuerySchema }), asyncHandler
     }
   }
 
-  const { page, limit } = req.query;
-  const skip = (page - 1) * limit;
+  const { limit: cursorLimit, cursor, invalid: invalidCursor } = parseCursorQuery(req.query);
+  const { page, limit, skip } = parsePagination(req.query);
+  if (invalidCursor) {
+    return next(new ApiError('INVALID_INPUT', 'Invalid cursor parameter'));
+  }
   const where = buildUserSearchWhere(search);
 
   try {
+    if (cursor) {
+      // Keyset mode: seek straight past the cursor row instead of skipping
+      // every preceding row, so deep pages cost the same as page one.
+      const candidates = await prisma.user.findMany({
+        where: { AND: [where, keysetWhereDesc(cursor)] },
+        orderBy: [
+          { createdAt: 'desc' },
+          { username: 'desc' },
+        ],
+        take: cursorLimit + 1,
+      });
+      const { rows, hasMore, nextCursor } = paginateByKeyset(candidates, cursorLimit);
+      const data = rows.map((user) => ({
+        username: user.username,
+        address: user.address,
+        created_at: user.createdAt.toISOString(),
+      }));
+      return res.json(cursorPaginatedResponse(data, { limit: cursorLimit, nextCursor, hasMore }));
+    }
+
     const [totalCount, rows] = await prisma.$transaction([
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { createdAt: 'desc' },
+          { username: 'desc' },
+        ],
         skip,
         take: limit,
       }),
@@ -317,17 +350,43 @@ const totalPages = Math.ceil(totalCount / limit);
 }));
 
 router.get('/users', validateSchema({ query: usersQuerySchema }), asyncHandler(async (req, res, next) => {
-  const { page, limit } = req.query;
-  const skip = (page - 1) * limit;
+  const { limit: cursorLimit, cursor, invalid: invalidCursor } = parseCursorQuery(req.query);
+  const { page, limit, skip } = parsePagination(req.query);
+  if (invalidCursor) {
+    return next(new ApiError('INVALID_INPUT', 'Invalid cursor parameter'));
+  }
   const search = req.query.search ?? null;
   const where = search ? buildUserSearchWhere(search) : { deletedAt: null };
 
   try {
+    if (cursor) {
+      // Keyset mode: seek straight past the cursor row instead of skipping
+      // every preceding row, so deep pages cost the same as page one.
+      const candidates = await prisma.user.findMany({
+        where: { AND: [where, keysetWhereDesc(cursor)] },
+        orderBy: [
+          { createdAt: 'desc' },
+          { username: 'desc' },
+        ],
+        take: cursorLimit + 1,
+      });
+      const { rows, hasMore, nextCursor } = paginateByKeyset(candidates, cursorLimit);
+      const data = rows.map((user) => ({
+        username: user.username,
+        address: user.address,
+        created_at: user.createdAt ? user.createdAt.toISOString() : undefined,
+      }));
+      return res.json(cursorPaginatedResponse(data, { limit: cursorLimit, nextCursor, hasMore }));
+    }
+
     const [totalCount, rows] = await prisma.$transaction([
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { createdAt: 'desc' },
+          { username: 'desc' },
+        ],
         skip,
         take: limit,
       }),

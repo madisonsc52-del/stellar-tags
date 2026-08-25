@@ -34,6 +34,7 @@
     "express-rate-limit": "^7.5.0",
     "generic-pool": "^3.9.0",
     "helmet": "^8.3.0",
+    "json2csv": "5.0.7",
     "node-cache": "^5.1.2",
     "node-cron": "4.5.0",
     "pdfkit": "^0.15.2",

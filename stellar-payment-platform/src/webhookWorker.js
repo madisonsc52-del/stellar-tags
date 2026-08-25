@@ -65,6 +65,9 @@ const sendWebhook = async (url, payload, secret) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // Primary header per issue #496 spec.
+        'X-Webhook-Signature': signature,
+        // Legacy alias kept for backward compatibility.
         'X-Stellar-Tags-Signature': signature,
         'X-Webhook-Timestamp': payload.timestamp,
       },
